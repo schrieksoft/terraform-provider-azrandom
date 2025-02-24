@@ -1,3 +1,5 @@
+# Copyright (c) HashiCorp, Inc.
+
 
 terraform {
   required_providers {
@@ -10,11 +12,11 @@ terraform {
 
 
 provider "azrandom" {
-  vault_url = "https://localdev-azrandom-bxnwi8xn.vault.azure.net/"
-  disable_environment_credential = true
-  disable_managed_identity_credential = true
+  vault_url                              = "https://localdev-azrandom-bxnwi8xn.vault.azure.net/"
+  disable_environment_credential         = true
+  disable_managed_identity_credential    = true
   disable_azure_developer_cli_credential = true
-  disable_azure_cli_credential = true
+  disable_azure_cli_credential           = true
 }
 
 resource "azrandom_uuid" "this" {

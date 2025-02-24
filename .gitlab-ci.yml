@@ -1,3 +1,5 @@
+# Copyright (c) HashiCorp, Inc.
+
 workflow:
   rules:
     # Note that the rules ordering is important! The "when: never" settings must be set *first*.

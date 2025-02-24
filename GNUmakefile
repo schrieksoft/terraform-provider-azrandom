@@ -1,18 +1,24 @@
-default: testacc
+default: fmt lint install generate
 
-HOSTNAME=bma
-NAMESPACE=internal
-NAME=azrandom
-BINARY=terraform-provider-${NAME}
-VERSION=0.1.0
-OS_ARCH=linux_amd64
+build:
+	go build -v ./...
 
-# Run acceptance tests
-.PHONY: testacc
+install: build
+	go install -v ./...
+
+lint:
+	golangci-lint run
+
+generate:
+	cd tools; go generate ./...
+
+fmt:
+	gofmt -s -w -e .
+
+test:
+	go test -v -cover -timeout=120s -parallel=10 ./...
+
 testacc:
-	TF_ACC=1 go test ./... -v $(TESTARGS) -timeout 120m
+	TF_ACC=1 go test -v -cover -timeout 120m ./...
 
-install: 
-	go build -o ${BINARY}
-	mkdir -p ~/.terraform.d/plugins/${HOSTNAME}/${NAMESPACE}/${NAME}/${VERSION}/${OS_ARCH}
-	mv ${BINARY} ~/.terraform.d/plugins/${HOSTNAME}/${NAMESPACE}/${NAME}/${VERSION}/${OS_ARCH}
+.PHONY: fmt lint test testacc build install generate
