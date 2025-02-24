@@ -10,7 +10,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 
-	"terraform-provider-snapcd/internal/provider"
+	"terraform-provider-azrandom/internal/provider"
 )
 
 
