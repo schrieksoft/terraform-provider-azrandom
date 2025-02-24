@@ -1,0 +1,167 @@
+workflow:
+  rules:
+    # Note that the rules ordering is important! The "when: never" settings must be set *first*.
+    - if: $CI_COMMIT_TAG
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: never
+    - if: $CI_COMMIT_REF_PROTECTED == "false"
+      when: never
+    - if: $CI_COMMIT_REF_PROTECTED == "true"
+      when: always
+
+include:
+  - project: "bma/templates/ci"
+    ref: "1.2.5"
+    file: "jobs/release.yaml"
+  - project: "bma/templates/ci"
+    ref: "1.2.5"
+    file: "jobs/build-tf-provider.yaml"
+
+stages:
+  - version
+  - build
+  - publish
+  - release
+
+calculate-version:
+  stage: version
+  extends: .gitversion
+  variables:
+    CONFIG_PATH: gitversion.yaml
+  only:
+    - main
+
+release-notes:
+  stage: release
+  needs:
+    - calculate-version
+  extends: .release-notes
+  only:
+    - main
+
+build:
+  stage: build
+  needs:
+    - calculate-version
+  image: golang:1.21.9
+  variables:
+    TERRAFORM_PROVIDER_BUILD_VERSION: $GitVersion_SemVer
+  artifacts:
+    paths:
+      - "terraform-provider-azrandom_${TERRAFORM_PROVIDER_BUILD_VERSION}_linux-amd64"
+      - "terraform-provider-azrandom_${TERRAFORM_PROVIDER_BUILD_VERSION}_linux-arm64"
+      - "terraform-provider-azrandom_${TERRAFORM_PROVIDER_BUILD_VERSION}_darwin-amd64"
+      - "terraform-provider-azrandom_${TERRAFORM_PROVIDER_BUILD_VERSION}_darwin-arm64"
+      - "terraform-provider-azrandom_${TERRAFORM_PROVIDER_BUILD_VERSION}_windows-amd64"
+      - "terraform-provider-azrandom_${TERRAFORM_PROVIDER_BUILD_VERSION}_windows-arm64"
+  tags:
+    - gitlab-runner-apps-main
+  only:
+    - main
+  script: |
+    go mod tidy
+    export GOOS="linux"
+    export GOARCH="amd64"
+    go build -o "terraform-provider-azrandom_${TERRAFORM_PROVIDER_BUILD_VERSION}_linux-amd64"
+    export GOOS="linux"
+    export GOARCH="arm64"
+    go build -o "terraform-provider-azrandom_${TERRAFORM_PROVIDER_BUILD_VERSION}_linux-arm64"
+    export GOOS="darwin"
+    export GOARCH="amd64"
+    go build -o "terraform-provider-azrandom_${TERRAFORM_PROVIDER_BUILD_VERSION}_darwin-amd64"
+    export GOOS="darwin"
+    export GOARCH="arm64"
+    go build -o "terraform-provider-azrandom_${TERRAFORM_PROVIDER_BUILD_VERSION}_darwin-arm64"
+    export GOOS="windows"
+    export GOARCH="amd64"
+    go build -o "terraform-provider-azrandom_${TERRAFORM_PROVIDER_BUILD_VERSION}_windows-amd64"
+    export GOOS="windows"
+    export GOARCH="arm64"
+    go build -o "terraform-provider-azrandom_${TERRAFORM_PROVIDER_BUILD_VERSION}_windows-arm64"
+
+release:
+  stage: release
+  needs:
+    - calculate-version
+    - release-notes
+    - build
+  extends: .release
+
+  tags:
+    - gitlab-runner-apps-main
+
+publish:
+  stage: publish
+  needs:
+    - calculate-version
+    - build
+  image: keystoreprodnp9.azurecr.io/ci_base:1.0.85
+  variables:
+    TERRAFORM_PROVIDER_BUILD_VERSION: $GitVersion_SemVer
+  tags:
+    - gitlab-runner-apps-main
+  only:
+    - main
+  script: |
+    az login --service-principal -u "$AZURE_CLIENT_ID" -t "$AZURE_TENANT_ID" --federated-token "$(cat "$AZURE_FEDERATED_TOKEN_FILE")"
+
+    echo "sourcing publish script"
+    source publish.sh
+
+    echo "update versions"
+    update_version "bma" "azrandom" "$TERRAFORM_PROVIDER_BUILD_VERSION"
+
+    echo "running publish functions terraform-provider-azrandom_${TERRAFORM_PROVIDER_BUILD_VERSION}_linux-amd64"
+    publish \
+      "terraform-provider-azrandom_${TERRAFORM_PROVIDER_BUILD_VERSION}_linux-amd64" \
+      "linux" \
+      "amd64" \
+      "bma" \
+      "azrandom" \
+      "$TERRAFORM_PROVIDER_BUILD_VERSION"
+
+    echo "running publish functions terraform-provider-azrandom_${TERRAFORM_PROVIDER_BUILD_VERSION}_linux-arm64"
+    publish \
+      "terraform-provider-azrandom_${TERRAFORM_PROVIDER_BUILD_VERSION}_linux-arm64" \
+      "linux" \
+      "arm64" \
+      "bma" \
+      "azrandom" \
+      "$TERRAFORM_PROVIDER_BUILD_VERSION"
+
+    echo "running publish functions terraform-provider-azrandom_${TERRAFORM_PROVIDER_BUILD_VERSION}_darwin-amd64"
+    publish \
+      "terraform-provider-azrandom_${TERRAFORM_PROVIDER_BUILD_VERSION}_darwin-amd64" \
+      "darwin" \
+      "amd64" \
+      "bma" \
+      "azrandom" \
+      "$TERRAFORM_PROVIDER_BUILD_VERSION"
+
+    echo "running publish functions terraform-provider-azrandom_${TERRAFORM_PROVIDER_BUILD_VERSION}_darwin-arm64"
+    publish \
+      "terraform-provider-azrandom_${TERRAFORM_PROVIDER_BUILD_VERSION}_darwin-arm64" \
+      "darwin" \
+      "arm64" \
+      "bma" \
+      "azrandom" \
+      "$TERRAFORM_PROVIDER_BUILD_VERSION"
+
+    echo "running publish functions terraform-provider-azrandom_${TERRAFORM_PROVIDER_BUILD_VERSION}_windows-amd64"
+    publish \
+      "terraform-provider-azrandom_${TERRAFORM_PROVIDER_BUILD_VERSION}_windows-amd64" \
+      "windows" \
+      "amd64" \
+      "bma" \
+      "azrandom" \
+      "$TERRAFORM_PROVIDER_BUILD_VERSION"
+
+    echo "running publish functions terraform-provider-azrandom_${TERRAFORM_PROVIDER_BUILD_VERSION}_windows-arm64"
+    publish \
+      "terraform-provider-azrandom_${TERRAFORM_PROVIDER_BUILD_VERSION}_windows-arm64" \
+      "windows" \
+      "arm64" \
+      "bma" \
+      "azrandom" \
+      "$TERRAFORM_PROVIDER_BUILD_VERSION"
